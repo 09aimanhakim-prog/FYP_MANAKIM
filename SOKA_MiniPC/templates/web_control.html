@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+  <title>SOKA Robot Control</title>
+  <style>
+    :root { color-scheme:dark; --panel:#092b20ee; --panel-2:#0d3a2bee; --line:#ffffff30; --accent:#a8ef67; --gold:#f5c84c; --pitch:#08723f; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font:16px system-ui,sans-serif; color:#f7fff9; background:linear-gradient(90deg,transparent 49.82%,#ffffff24 49.9% 50.1%,transparent 50.18%),radial-gradient(circle at 50% 50%,transparent 0 115px,#ffffff20 116px 119px,transparent 120px),repeating-linear-gradient(90deg,#076c3b 0 110px,#087944 110px 220px); background-attachment:fixed; }
+    header { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:#041b14f2; border-bottom:2px solid #ffffff25; box-shadow:0 5px 22px #001b10aa; }
+    h1 { margin:0; font-size:20px; }
+    #connection { color:#d9f4df; }
+    nav { display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px 0; }
+    main { padding:14px; }
+    .view { display:grid; grid-template-columns:minmax(320px,2fr) minmax(300px,1fr); gap:14px; }
+    .view.hidden { display:none; }
+    .panel { background:linear-gradient(145deg,var(--panel-2),var(--panel)); border:1px solid var(--line); border-radius:14px; padding:12px; box-shadow:0 10px 28px #00180e88,inset 0 1px #ffffff12; }
+    #camera, #courseCamera, #goalkeeperCamera { display:block; width:100%; max-height:72vh; object-fit:contain; background:#000; border:2px solid #ffffff40; border-radius:10px; }
+    #calibrationCamera { display:block; width:100%; max-height:72vh; object-fit:contain; background:#000; border-radius:8px; cursor:crosshair; touch-action:manipulation; }
+    #goalCalibrationCamera { display:block; width:100%; max-height:72vh; object-fit:contain; background:#000; border-radius:8px; cursor:crosshair; touch-action:none; user-select:none; }
+    #sideCamera { display:block; width:100%; max-height:72vh; object-fit:contain; background:#000; border-radius:8px; cursor:crosshair; touch-action:manipulation; }
+    .calibration-stage { position:relative; }
+    #goalSelection { display:none; position:absolute; border:2px solid #ffa500; background:#ffa50022; pointer-events:none; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+    button { border:1px solid #ffffff35; border-radius:9px; background:#164d38; color:white; padding:10px 13px; font-weight:700; cursor:pointer; box-shadow:inset 0 1px #ffffff10; }
+    button:active { transform:translateY(1px); }
+    button:hover { background:#1b6146; }
+    button.active { color:#10210f; border-color:#e9ffbd; background:var(--accent); box-shadow:0 0 0 2px #a8ef6730; }
+    button.danger { background:#852d35; border-color:#c94e59; }
+    button.warn { background:#806318; border-color:#f5c84c88; }
+    .label { margin-top:12px; color:#d5efdc; font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+    #joystick { width:min(70vw,280px); aspect-ratio:1; margin:12px auto; border:2px solid #526172; border-radius:50%; position:relative; touch-action:none; background:radial-gradient(circle,#202b37 0 15%,#111923 16% 100%); }
+    #stick { width:78px; height:78px; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); border-radius:50%; background:#55d68b; box-shadow:0 5px 18px #0009; pointer-events:none; }
+    #turnpad { width:min(75vw,320px); height:92px; margin:12px auto; border:2px solid #526172; border-radius:46px; position:relative; touch-action:none; background:linear-gradient(90deg,#18232f,#0f161f,#18232f); }
+    #turnstick { width:70px; height:70px; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); border-radius:50%; background:#e1a951; box-shadow:0 5px 18px #0009; pointer-events:none; }
+    #dpad { width:min(88vw,360px); margin:12px auto 20px; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,72px); gap:8px; user-select:none; }
+    #dpad button { min-width:0; padding:5px; touch-action:none; font-size:25px; background:#123f2f; }
+    #dpad button small { display:block; margin-top:2px; font-size:10px; letter-spacing:.05em; }
+    #dpad button.pressed { color:#10210f; background:var(--accent); border-color:#e9ffbd; box-shadow:0 0 0 3px #a8ef6740; }
+    #dpadUp { grid-column:2; grid-row:1; }
+    #dpadLeft { grid-column:1; grid-row:2; }
+    #dpadStop { grid-column:2; grid-row:2; background:#852d35 !important; }
+    #dpadRight { grid-column:3; grid-row:2; }
+    #dpadDown { grid-column:2; grid-row:3; }
+    #xy, #rotation, #state, #manualState, #goalkeeperState, #courseState { text-align:center; font-variant-numeric:tabular-nums; }
+    #state, #goalkeeperState, #courseState { background:#031b13cc; border:1px solid #ffffff20; padding:9px; border-radius:7px; min-height:42px; overflow-wrap:anywhere; }
+    .slider-setting { display:grid; grid-template-columns:1fr auto; gap:5px 12px; align-items:center; margin:12px 0; }
+    .slider-setting input { grid-column:1 / 3; width:100%; accent-color:var(--accent); }
+    .slider-setting output { color:var(--accent); font-variant-numeric:tabular-nums; }
+    input:disabled { opacity:.45; }
+    .check-setting { display:flex; align-items:center; gap:9px; margin:12px 0; }
+    .check-setting input { width:20px; height:20px; accent-color:#e1a951; }
+    .hint { color:#c6ddcc; font-size:13px; line-height:1.4; }
+    .progress { height:14px; overflow:hidden; border:1px solid #526172; border-radius:7px; background:#0c1219; margin:10px 0; }
+    .progress > div { width:0; height:100%; background:var(--accent); transition:width .08s linear; }
+    #ballCalibrationState { background:#0c1219; padding:10px; border-radius:7px; min-height:46px; line-height:1.4; }
+    #fieldCanvas { display:block; width:100%; max-height:76vh; background:#031b13; border:2px solid #ffffff40; border-radius:12px; cursor:crosshair; touch-action:none; }
+    #fieldMapState, #waypointState { background:#031b13cc; border:1px solid #ffffff20; padding:10px; border-radius:7px; min-height:46px; text-align:center; font-variant-numeric:tabular-nums; }
+    .number-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:10px 0; }
+    .number-grid label { display:grid; gap:5px; color:#d5efdc; font-size:13px; }
+    .number-grid input { width:100%; border:1px solid #ffffff35; border-radius:7px; padding:9px; background:#06251b; color:white; font:inherit; }
+    @media (max-width:850px) { .view { grid-template-columns:1fr; } #camera, #courseCamera, #goalkeeperCamera { max-height:none; } }
+  </style>
+</head>
+<body>
+  <header><h1>⚽ SOKA Robot Control</h1><div id="connection">Connecting…</div></header>
+  <nav><button id="autoTab" class="active">Autonomous</button><button id="courseTab">Cone Course</button><button id="fieldMapTab">Field Map</button><button id="goalkeeperTab">Goalkeeper</button><button id="manualTab">Manual Control</button><button id="calibrationTab">Ball Calibration</button><button id="goalCalibrationTab">Goal Calibration</button><button id="sideTab">Side Safety Camera</button></nav>
+  <main>
+    <div id="autoView" class="view">
+      <section class="panel"><img id="camera" src="/video" alt="Robot camera"></section>
+      <section class="panel">
+        <div class="label">Ball color</div>
+        <div class="row" id="colors"><button data-color="yellow">Yellow</button><button data-color="blue">Blue</button><button data-color="red">Red</button><button data-color="orange">Orange</button></div>
+        <div class="label">Goal color</div>
+        <div class="row" id="goalColors"><button data-goal-color="yellow">Yellow goal</button><button data-goal-color="blue">Blue goal</button></div>
+        <div class="label">Autonomous tracker</div>
+        <div class="row"><button id="auto">Arm auto</button><button class="danger stop">STOP</button></div>
+        <div id="state">Waiting for state…</div>
+        <p class="hint">When armed, the robot first checks 50° right, 50° left, and center. If the ball is still missing, it begins the full 360° left/right search, turns toward a distant ball, and switches to gyro-held sideways centering inside roughly 30 cm before the capture push.</p>
+        <div class="label">Dribbler — SAFE mode only</div>
+        <label class="slider-setting"><span>Dribbler PWM</span><output id="dribblerSpeedValue">210</output><input id="dribblerSpeed" type="range" min="100" max="255" step="5" value="210"></label>
+        <label class="slider-setting"><span>Forward capture push</span><output id="capturePushTimeValue">1.50 s (~30 cm)</output><input id="capturePushTime" type="range" min="0.25" max="3.00" step="0.05" value="1.50"></label>
+        <p class="hint">The PWM is used by autonomous capture and the manual Dribbler on button. Capture push controls how long the robot continues forward after the centered ball disappears under the camera. The distance shown is only an estimate because floor grip and acceleration vary.</p>
+        <div class="label">Detection lines — SAFE mode only</div>
+        <label class="slider-setting"><span>Near / strafe line</span><output id="nearLineValue">63%</output><input id="nearLine" type="range" min="30" max="85" step="1" value="63"></label>
+        <label class="slider-setting"><span>Capture trigger line</span><output id="captureLineValue">86%</output><input id="captureLine" type="range" min="40" max="95" step="1" value="86"></label>
+        <p class="hint">Percent is measured from the top of the image. The capture line must stay at least 5% below the near line. Settings are saved on the Mini PC.</p>
+        <div class="label">Goal shooting — SAFE mode only</div>
+        <label class="slider-setting"><span>Goal shoot-distance line</span><output id="goalShootLineValue">72%</output><input id="goalShootLine" type="range" min="5" max="99" step="1" value="72"></label>
+        <label class="check-setting"><input id="autoKick" type="checkbox"><span>Automatically kick when goal is centered at the line</span></label>
+        <p class="hint">Automatic kick defaults OFF. Test goal detection and the orange shoot line with the kicker area clear before enabling it. After capturing a ball, goal search uses a rolling circle instead of rotation in place.</p>
+        <div class="label">Setup</div>
+        <div class="row"><button data-action="zero">Zero gyro</button><button data-action="status">Status</button><button data-action="calibrate">Calibrate</button></div>
+      </section>
+    </div>
+    <div id="courseView" class="view hidden">
+      <section class="panel"><img id="courseCamera" src="/video" alt="Cone course camera"></section>
+      <section class="panel">
+        <div class="label">Goal color</div>
+        <div class="row"><button data-goal-color="yellow">Yellow goal</button><button data-goal-color="blue">Blue goal</button></div>
+        <div class="label">Obstacle course</div>
+        <div class="row"><button id="course">Arm cone course</button><button class="danger stop">STOP</button></div>
+        <div id="courseState">Cone course is SAFE</div>
+        <p class="hint">The robot drives forward while monitoring the central collision corridor. When a blocking obstacle reaches the orbit line, it chooses a side, keeps watching the obstacle, and moves tightly around it before facing forward again.</p>
+        <div class="label">Dark-obstacle tuning — SAFE mode only</div>
+        <label class="slider-setting"><span>Black brightness cutoff</span><output id="courseBlackValue">70</output><input data-course-setting id="courseBlack" type="range" min="25" max="130" step="1" value="70"></label>
+        <label class="slider-setting"><span>Floor ROI starts at</span><output id="courseRoiValue">38%</output><input data-course-setting id="courseRoi" type="range" min="20" max="70" step="1" value="38"></label>
+        <label class="slider-setting"><span>Minimum dark blob area</span><output id="courseAreaValue">180</output><input data-course-setting id="courseArea" type="range" min="60" max="2500" step="20" value="180"></label>
+        <label class="slider-setting"><span>Clear-path forward command</span><output id="courseForwardValue">30</output><input data-course-setting id="courseForward" type="range" min="20" max="75" step="1" value="30"></label>
+        <label class="slider-setting"><span>Collision corridor half-width</span><output id="courseDangerWidthValue">34%</output><input data-course-setting id="courseDangerWidth" type="range" min="15" max="48" step="1" value="34"></label>
+        <label class="slider-setting"><span>Orbit starts at</span><output id="courseOrbitStartValue">60%</output><input data-course-setting id="courseOrbitStart" type="range" min="45" max="85" step="1" value="60"></label>
+        <label class="slider-setting"><span>Orbit movement speed</span><output id="courseOrbitSpeedValue">34</output><input data-course-setting id="courseOrbitSpeed" type="range" min="20" max="65" step="1" value="34"></label>
+        <label class="slider-setting"><span>Forward distance before obstacle is passed</span><output id="courseOrbitDistanceValue">0.55 m</output><input data-course-setting id="courseOrbitDistance" type="range" min="0.25" max="1.20" step="0.05" value="0.55"></label>
+        <input data-course-setting id="coursePostClear" type="hidden" value="0.80">
+        <label class="slider-setting"><span>Map progress that starts goal search</span><output id="courseGoalProgressValue">75%</output><input data-course-setting id="courseGoalProgress" type="range" min="50" max="95" step="1" value="75"></label>
+        <label class="slider-setting"><span>Goal stop line</span><output id="courseGoalStopValue">72%</output><input data-course-setting id="courseGoalStop" type="range" min="5" max="99" step="1" value="72"></label>
+        <p class="hint">Only an inflated obstacle footprint overlapping the central red collision corridor can trigger avoidance. At the magenta orbit line the robot strafes tangentially while steering its camera toward the tracked obstacle; small forward/reverse corrections maintain clearance.</p>
+      </section>
+    </div>
+    <div id="fieldMapView" class="view hidden">
+      <section class="panel"><canvas id="fieldCanvas" width="620" height="720"></canvas></section>
+      <section class="panel">
+        <div class="label">Encoder odometry field map</div>
+        <div id="fieldMapState">Waiting for encoder telemetry…</div>
+        <div class="number-grid">
+          <label>Field width (m)<input data-field-setting id="fieldWidth" type="number" min="0.5" max="20" step="0.1" value="3.0"></label>
+          <label>Field length (m)<input data-field-setting id="fieldLength" type="number" min="0.5" max="30" step="0.1" value="4.0"></label>
+          <label>Sideways X scale<input data-field-setting id="fieldXScale" type="number" min="0.25" max="2.5" step="0.01" value="1.00"></label>
+          <label>Forward Y scale<input data-field-setting id="fieldYScale" type="number" min="0.25" max="2.5" step="0.01" value="1.00"></label>
+          <label>Waypoint maximum command<input data-field-setting id="waypointSpeed" type="number" min="20" max="70" step="1" value="45"></label>
+          <label>Waypoint stop radius (m)<input data-field-setting id="waypointRadius" type="number" min="0.05" max="0.50" step="0.01" value="0.15"></label>
+        </div>
+        <div class="row"><button id="saveFieldMap">Save map setup</button><button id="resetOdometry">Set current pose as start</button><button id="clearOdomTrail">Clear trail</button></div>
+        <p class="hint"><strong>Setup:</strong> enter measured field dimensions, place the robot at the center of the starting edge facing the goal, keep it SAFE, press Set current pose as start, then arm the desired mode. That button also makes the current physical direction gyro heading 0°. The map integrates RPM1–RPM3 and gyro heading at each STATUS update.</p>
+        <p class="hint">This is relative dead reckoning, not absolute localization. Wheel slip moves the displayed pose away from reality. Calibrate X and Y scales separately by driving a measured distance; visual goal/line corrections can be added later.</p>
+        <div class="label">Single-point showcase</div>
+        <div class="row"><button id="waypointArm">Arm selected waypoint</button><button id="clearWaypoint">Clear target</button><button class="danger stop">STOP</button></div>
+        <div id="waypointState">Click inside the pitch to select a target.</div>
+        <p class="hint"><strong>Use only on a clear floor:</strong> while SAFE, click a point inside the pitch. The yellow marker is the target. Arm it explicitly; the robot holds heading 0°, travels with a continuous field-relative X/Y vector, slows inside 0.65 m, and stops inside the configured radius. This showcase mode does not run cone avoidance.</p>
+      </section>
+    </div>
+    <div id="goalkeeperView" class="view hidden">
+      <section class="panel"><img id="goalkeeperCamera" src="/video" alt="Goalkeeper ball camera"></section>
+      <section class="panel">
+        <div class="label">Ball color</div>
+        <div class="row"><button data-color="yellow">Yellow</button><button data-color="blue">Blue</button><button data-color="red">Red</button><button data-color="orange">Orange</button></div>
+        <div class="label">Goalkeeper — lateral defense only</div>
+        <div class="row"><button id="goalkeeper">Arm goalkeeper</button><button class="danger stop">STOP</button></div>
+        <div id="goalkeeperState">Goalkeeper mode is SAFE</div>
+        <p class="hint">When armed, the robot holds heading 0° and uses only X strafing to place the detected ball on the camera center line. It never drives forward, activates the dribbler, or kicks. Losing the ball commands an immediate translation stop.</p>
+        <p class="hint">Test with raised wheels first, then place the robot on its goal line with clear lateral space.</p>
+      </section>
+    </div>
+    <div id="manualView" class="view hidden">
+      <section class="panel">
+        <div class="label">Straight movement buttons</div>
+        <label class="slider-setting"><span>Button movement speed</span><output id="dpadSpeedValue">60</output><input id="dpadSpeed" type="range" min="20" max="100" step="5" value="60"></label>
+        <div id="dpad" aria-label="Straight manual movement controls">
+          <button id="dpadUp" data-dpad-x="0" data-dpad-y="1">▲<small>FORWARD</small></button>
+          <button id="dpadLeft" data-dpad-x="-1" data-dpad-y="0">◀<small>LEFT</small></button>
+          <button id="dpadStop" data-dpad-x="0" data-dpad-y="0">■<small>STOP</small></button>
+          <button id="dpadRight" data-dpad-x="1" data-dpad-y="0">▶<small>RIGHT</small></button>
+          <button id="dpadDown" data-dpad-x="0" data-dpad-y="-1">▼<small>BACK</small></button>
+        </div>
+        <p class="hint">Press and hold a direction for an exact X or Y command; release it to stop translation. This removes the small sideways component that is hard to avoid with a touchscreen joystick.</p>
+        <div class="label">Translation — X / Y</div>
+        <div id="joystick"><div id="stick"></div></div><div id="xy">X 0 &nbsp; Y 0</div>
+        <div class="label">Rotation</div>
+        <div id="turnpad"><div id="turnstick"></div></div><div id="rotation">ROTATE 0</div>
+        <p class="hint">The D-pad or joystick can be used together with rotation. Releasing translation returns X/Y to zero; releasing rotation holds the new gyro heading.</p>
+      </section>
+      <section class="panel">
+        <div class="label">Manual testing</div>
+        <div class="row"><button id="manual">Enable manual</button><button class="danger stop">STOP</button></div>
+        <div id="manualState">Manual mode is SAFE</div>
+        <div class="label">Actuators</div>
+        <div class="row"><button data-action="zero">Zero heading</button><button data-action="dribbler_on">Dribbler on</button><button data-action="dribbler_off">Dribbler off</button><button class="warn" data-action="kick">Kick</button><button data-action="status">Status</button></div>
+        <p class="hint">Use raised wheels for the first test. Entering manual mode automatically zeros and enables heading hold. Kick only when the solenoid area is clear.</p>
+      </section>
+    </div>
+    <div id="calibrationView" class="view hidden">
+      <section class="panel"><img id="calibrationCamera" src="/video" alt="Click the ball to collect a color sample"></section>
+      <section class="panel">
+        <div class="label">Ball calibration color</div>
+        <div class="row" id="calibrationColors"><button data-cal-color="yellow">Yellow</button><button data-cal-color="blue">Blue</button><button data-cal-color="red">Red</button><button data-cal-color="orange">Orange</button></div>
+        <div class="row"><button id="beginBallCalibration">Start new calibration</button><button id="applyBallCalibration">Save &amp; apply</button><button id="cancelBallCalibration" class="danger">Cancel</button></div>
+        <div id="ballCalibrationState">Select a color and start a calibration.</div>
+        <div class="progress"><div id="ballCalibrationProgress"></div></div>
+        <p class="hint"><strong>How to use:</strong> put the robot in its normal lighting, choose the ball color, and press Start. Click the literal center of the ball, then hold it still for about one second. Move the ball to a different distance or brighter/darker part of the floor and click again. Three samples are recommended; then press Save &amp; apply.</p>
+        <p class="hint">Only a small patch around each click is analyzed. The robot stays SAFE, and the resulting HSV settings are saved in <code>ball_colors.json</code>. This does not train a neural network and adds almost no load during normal tracking.</p>
+      </section>
+    </div>
+    <div id="goalCalibrationView" class="view hidden">
+      <section class="panel"><div class="calibration-stage"><img id="goalCalibrationCamera" src="/video" alt="Drag inside the colored goal"><div id="goalSelection"></div></div></section>
+      <section class="panel">
+        <div class="label">Goal calibration color</div>
+        <div class="row"><button data-goal-cal-color="yellow">Yellow goal</button><button data-goal-cal-color="blue">Blue goal</button></div>
+        <div class="row"><button id="beginGoalCalibration">Start new calibration</button><button id="applyGoalCalibration">Save &amp; apply</button><button id="cancelGoalCalibration" class="danger">Cancel</button></div>
+        <div id="goalCalibrationState">Select a goal color and start calibration.</div>
+        <div class="progress"><div id="goalCalibrationProgress"></div></div>
+        <p class="hint"><strong>How to use:</strong> choose the goal color and press Start. Drag a box completely inside the solid colored goal area—avoid posts, floor, and walls. Hold still for about one second. Repeat from two or three positions or lighting conditions, then press Save &amp; apply.</p>
+        <p class="hint">Goal HSV settings are independent from ball HSV settings and are saved in <code>goal_colors.json</code>. Geometry filtering then requires a large, wide region with left, right, and bottom edge support.</p>
+      </section>
+    </div>
+    <div id="sideView" class="view hidden">
+      <section class="panel"><img id="sideCamera" src="/side-video" alt="Side safety camera mask preview"></section>
+      <section class="panel">
+        <div class="label">Adjustable side-camera zones — SAFE mode only</div>
+        <div id="sideCameraState">Side camera status unknown.</div>
+        <div class="label">Floor-color picker</div>
+        <div class="row"><button id="beginFloorCalibration">Start floor calibration</button><button id="applyFloorCalibration">Save &amp; apply</button><button id="cancelFloorCalibration" class="danger">Cancel</button></div>
+        <div id="floorCalibrationState">Click calibration status unavailable.</div>
+        <div class="progress"><div id="floorCalibrationProgress"></div></div>
+        <label class="check-setting"><input id="sideAvoidance" type="checkbox"><span>Enable autonomous opposite-side strafe</span></label>
+        <p class="hint">Start calibration, then click clean floor inside a green rectangle. Keep still for one second per click. Sample clean floor on both sides and under different brightness—avoid tile lines, reflections and shadows. Save &amp; apply before enabling movement.</p>
+        <label class="slider-setting"><span>Active-zone top</span><output id="sideTopValue">15%</output><input data-side-mask="top" id="sideTop" type="range" min="0" max="80" step="1" value="15"></label>
+        <label class="slider-setting"><span>Active-zone bottom</span><output id="sideBottomValue">94%</output><input data-side-mask="bottom" id="sideBottom" type="range" min="20" max="100" step="1" value="94"></label>
+        <div class="label">Left side</div>
+        <label class="slider-setting"><span>Left outer edge</span><output id="sideLeftOuterValue">0%</output><input data-side-mask="left_outer" id="sideLeftOuter" type="range" min="0" max="60" step="1" value="0"></label>
+        <label class="slider-setting"><span>Left inner edge</span><output id="sideLeftInnerValue">25%</output><input data-side-mask="left_inner" id="sideLeftInner" type="range" min="5" max="65" step="1" value="25"></label>
+        <div class="label">Right side</div>
+        <label class="slider-setting"><span>Right inner edge</span><output id="sideRightInnerValue">75%</output><input data-side-mask="right_inner" id="sideRightInner" type="range" min="35" max="95" step="1" value="75"></label>
+        <label class="slider-setting"><span>Right outer edge</span><output id="sideRightOuterValue">100%</output><input data-side-mask="right_outer" id="sideRightOuter" type="range" min="40" max="100" step="1" value="100"></label>
+        <p class="hint">Green rectangles are the only pixels that a later obstacle detector will use. Red/dark pixels are masked. Adjust the boundaries until the robot body, hoops, secured cables and blind areas are outside both green rectangles. Settings persist in <code>web_settings.json</code>.</p>
+        <p class="hint">Detection requires four consecutive foreign-object frames and seven clear frames to release. Left obstruction commands X=+35 (right strafe); right obstruction commands X=-35 (left strafe); both sides blocked stop translation. The switch defaults OFF and can only be changed while SAFE.</p>
+      </section>
+    </div>
+  </main>
+  <script>
+    const post=(url,data)=>fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    let mode='safe', joyActive=false, turnActive=false, joyX=0, joyY=0, joyR=0, floorCalibrated=false;
+    async function setMode(next){
+      resetManualInputs();
+      const response=await post('/api/mode',{mode:next});
+      const result=await response.json();
+      if(!response.ok){alert(result.error||`Could not enter ${next} mode`);return false;}
+      mode=result.mode; updateButtons(); return true;
+    }
+    function updateButtons(){
+      document.querySelector('#auto').classList.toggle('active',mode==='auto');
+      document.querySelector('#course').classList.toggle('active',mode==='course');
+      document.querySelector('#goalkeeper').classList.toggle('active',mode==='goalkeeper');
+      document.querySelector('#manual').classList.toggle('active',mode==='manual');
+      document.querySelector('#waypointArm').classList.toggle('active',mode==='waypoint');
+      document.querySelector('#nearLine').disabled=mode!=='safe';
+      document.querySelector('#captureLine').disabled=mode!=='safe';
+      document.querySelector('#goalShootLine').disabled=mode!=='safe';
+      document.querySelector('#autoKick').disabled=mode!=='safe';
+      document.querySelector('#dribblerSpeed').disabled=mode!=='safe';
+      document.querySelector('#capturePushTime').disabled=mode!=='safe';
+      document.querySelectorAll('[data-course-setting]').forEach(x=>x.disabled=mode!=='safe');
+      document.querySelectorAll('[data-field-setting]').forEach(x=>x.disabled=mode!=='safe');
+      document.querySelector('#saveFieldMap').disabled=mode!=='safe';
+      document.querySelector('#resetOdometry').disabled=mode!=='safe';
+      document.querySelector('#waypointArm').disabled=mode!=='safe'&&mode!=='waypoint';
+      document.querySelector('#clearWaypoint').disabled=mode!=='safe';
+      document.querySelectorAll('[data-dpad-x]').forEach(x=>x.disabled=mode!=='manual');
+      document.querySelectorAll('[data-side-mask]').forEach(x=>x.disabled=mode!=='safe');
+      document.querySelector('#sideAvoidance').disabled=mode!=='safe'||!floorCalibrated;
+      document.querySelector('#beginFloorCalibration').disabled=mode!=='safe';
+    }
+    document.querySelector('#auto').onclick=()=>setMode('auto');
+    document.querySelector('#course').onclick=()=>setMode('course');
+    document.querySelector('#goalkeeper').onclick=()=>setMode('goalkeeper');
+    document.querySelector('#manual').onclick=()=>setMode('manual');
+    async function showView(name){
+      if((name==='calibration'||name==='goalCalibration')&&mode!=='safe')await setMode('safe');
+      post('/api/view',{view:name});
+      document.querySelector('#autoView').classList.toggle('hidden',name!=='auto');
+      document.querySelector('#courseView').classList.toggle('hidden',name!=='course');
+      document.querySelector('#fieldMapView').classList.toggle('hidden',name!=='fieldMap');
+      document.querySelector('#goalkeeperView').classList.toggle('hidden',name!=='goalkeeper');
+      document.querySelector('#manualView').classList.toggle('hidden',name!=='manual');
+      document.querySelector('#calibrationView').classList.toggle('hidden',name!=='calibration');
+      document.querySelector('#goalCalibrationView').classList.toggle('hidden',name!=='goalCalibration');
+      document.querySelector('#sideView').classList.toggle('hidden',name!=='side');
+      document.querySelector('#autoTab').classList.toggle('active',name==='auto');
+      document.querySelector('#courseTab').classList.toggle('active',name==='course');
+      document.querySelector('#fieldMapTab').classList.toggle('active',name==='fieldMap');
+      document.querySelector('#goalkeeperTab').classList.toggle('active',name==='goalkeeper');
+      document.querySelector('#manualTab').classList.toggle('active',name==='manual');
+      document.querySelector('#calibrationTab').classList.toggle('active',name==='calibration');
+      document.querySelector('#goalCalibrationTab').classList.toggle('active',name==='goalCalibration');
+      document.querySelector('#sideTab').classList.toggle('active',name==='side');
+    }
+    document.querySelector('#autoTab').onclick=()=>showView('auto');
+    document.querySelector('#courseTab').onclick=()=>showView('course');
+    document.querySelector('#fieldMapTab').onclick=()=>showView('fieldMap');
+    document.querySelector('#goalkeeperTab').onclick=()=>showView('goalkeeper');
+    document.querySelector('#manualTab').onclick=()=>showView('manual');
+    document.querySelector('#calibrationTab').onclick=()=>showView('calibration');
+    document.querySelector('#goalCalibrationTab').onclick=()=>showView('goalCalibration');
+    document.querySelector('#sideTab').onclick=()=>showView('side');
+    document.querySelectorAll('.stop').forEach(b=>b.onclick=()=>setMode('safe'));
+    document.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>post('/api/color',{color:b.dataset.color}));
+    document.querySelectorAll('[data-goal-color]').forEach(b=>b.onclick=()=>post('/api/goal-color',{color:b.dataset.goalColor}));
+    document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>post('/api/action',{action:b.dataset.action}));
+
+    let calibrationColor='orange';
+    document.querySelectorAll('[data-cal-color]').forEach(b=>b.onclick=async()=>{
+      calibrationColor=b.dataset.calColor;
+      await post('/api/color',{color:calibrationColor});
+      document.querySelectorAll('[data-cal-color]').forEach(x=>x.classList.toggle('active',x.dataset.calColor===calibrationColor));
+    });
+    async function calibrationPost(url,data={}){
+      const response=await post(url,data);
+      const result=await response.json();
+      if(!response.ok)alert(result.error||'Calibration failed');
+      return result;
+    }
+    document.querySelector('#beginBallCalibration').onclick=()=>calibrationPost('/api/ball-calibration/begin',{color:calibrationColor});
+    document.querySelector('#applyBallCalibration').onclick=()=>calibrationPost('/api/ball-calibration/apply');
+    document.querySelector('#cancelBallCalibration').onclick=()=>calibrationPost('/api/ball-calibration/cancel');
+    document.querySelector('#calibrationCamera').onclick=async event=>{
+      const image=event.currentTarget, box=image.getBoundingClientRect();
+      if(!image.naturalWidth||!image.naturalHeight)return;
+      const scale=Math.min(box.width/image.naturalWidth,box.height/image.naturalHeight);
+      const shownWidth=image.naturalWidth*scale, shownHeight=image.naturalHeight*scale;
+      const left=box.left+(box.width-shownWidth)/2, top=box.top+(box.height-shownHeight)/2;
+      const x=(event.clientX-left)/scale, y=(event.clientY-top)/scale;
+      if(x<0||x>=image.naturalWidth||y<0||y>=image.naturalHeight)return;
+      await calibrationPost('/api/ball-calibration/sample',{x,y});
+    };
+
+    let goalCalibrationColor='blue', goalDragging=false, goalDragStart=null;
+    const goalImage=document.querySelector('#goalCalibrationCamera'), goalSelection=document.querySelector('#goalSelection');
+    document.querySelectorAll('[data-goal-cal-color]').forEach(b=>b.onclick=async()=>{
+      goalCalibrationColor=b.dataset.goalCalColor;
+      await post('/api/goal-color',{color:goalCalibrationColor});
+    });
+    document.querySelector('#beginGoalCalibration').onclick=()=>calibrationPost('/api/goal-calibration/begin',{color:goalCalibrationColor});
+    document.querySelector('#applyGoalCalibration').onclick=()=>calibrationPost('/api/goal-calibration/apply');
+    document.querySelector('#cancelGoalCalibration').onclick=()=>calibrationPost('/api/goal-calibration/cancel');
+    function imagePoint(image,event){
+      const box=image.getBoundingClientRect();
+      if(!image.naturalWidth||!image.naturalHeight)return null;
+      const scale=Math.min(box.width/image.naturalWidth,box.height/image.naturalHeight);
+      const shownWidth=image.naturalWidth*scale, shownHeight=image.naturalHeight*scale;
+      const left=box.left+(box.width-shownWidth)/2, top=box.top+(box.height-shownHeight)/2;
+      const x=(event.clientX-left)/scale, y=(event.clientY-top)/scale;
+      if(x<0||x>=image.naturalWidth||y<0||y>=image.naturalHeight)return null;
+      return {x,y,clientX:event.clientX,clientY:event.clientY};
+    }
+    goalImage.onpointerdown=event=>{
+      const point=imagePoint(goalImage,event); if(!point)return;
+      goalDragging=true; goalDragStart=point; goalImage.setPointerCapture(event.pointerId);
+      const stage=goalImage.parentElement.getBoundingClientRect();
+      goalSelection.style.display='block'; goalSelection.style.left=`${event.clientX-stage.left}px`; goalSelection.style.top=`${event.clientY-stage.top}px`; goalSelection.style.width='0'; goalSelection.style.height='0';
+    };
+    goalImage.onpointermove=event=>{
+      if(!goalDragging)return; const stage=goalImage.parentElement.getBoundingClientRect();
+      const left=Math.min(goalDragStart.clientX,event.clientX)-stage.left, top=Math.min(goalDragStart.clientY,event.clientY)-stage.top;
+      goalSelection.style.left=`${left}px`; goalSelection.style.top=`${top}px`; goalSelection.style.width=`${Math.abs(event.clientX-goalDragStart.clientX)}px`; goalSelection.style.height=`${Math.abs(event.clientY-goalDragStart.clientY)}px`;
+    };
+    async function finishGoalDrag(event){
+      if(!goalDragging)return; goalDragging=false; goalImage.releasePointerCapture?.(event.pointerId);
+      const end=imagePoint(goalImage,event); goalSelection.style.display='none';
+      if(!end)return;
+      await calibrationPost('/api/goal-calibration/sample',{x1:goalDragStart.x,y1:goalDragStart.y,x2:end.x,y2:end.y});
+    }
+    goalImage.onpointerup=finishGoalDrag; goalImage.onpointercancel=event=>{goalDragging=false;goalSelection.style.display='none';goalImage.releasePointerCapture?.(event.pointerId);};
+
+    const nearLine=document.querySelector('#nearLine'), captureLine=document.querySelector('#captureLine');
+    const nearLineValue=document.querySelector('#nearLineValue'), captureLineValue=document.querySelector('#captureLineValue');
+    let lineUpdateTimer=null;
+    function showLineValues(){ nearLineValue.value=`${nearLine.value}%`; captureLineValue.value=`${captureLine.value}%`; }
+    function queueLineUpdate(changed){
+      let near=Number(nearLine.value), capture=Number(captureLine.value);
+      if(capture<near+5){
+        if(changed==='near')capture=Math.min(95,near+5); else near=Math.max(30,capture-5);
+        nearLine.value=near; captureLine.value=capture;
+      }
+      showLineValues(); clearTimeout(lineUpdateTimer);
+      lineUpdateTimer=setTimeout(async()=>{
+        const response=await post('/api/detection-lines',{near_percent:Number(nearLine.value),capture_percent:Number(captureLine.value)});
+        if(!response.ok){ const result=await response.json(); alert(result.error||'Could not update lines'); }
+      },120);
+    }
+    nearLine.oninput=()=>queueLineUpdate('near');
+    captureLine.oninput=()=>queueLineUpdate('capture');
+    const goalShootLine=document.querySelector('#goalShootLine'), goalShootLineValue=document.querySelector('#goalShootLineValue'), autoKick=document.querySelector('#autoKick');
+    let goalSettingTimer=null;
+    function showGoalSetting(){ goalShootLineValue.value=`${goalShootLine.value}%`; }
+    function queueGoalSettings(){
+      showGoalSetting(); clearTimeout(goalSettingTimer);
+      goalSettingTimer=setTimeout(async()=>{
+        const response=await post('/api/goal-settings',{shoot_percent:Number(goalShootLine.value),auto_kick_enabled:autoKick.checked});
+        if(!response.ok){const result=await response.json();alert(result.error||'Could not update goal settings');}
+      },120);
+    }
+    goalShootLine.oninput=queueGoalSettings; autoKick.onchange=queueGoalSettings;
+
+    const dribblerSpeed=document.querySelector('#dribblerSpeed'), dribblerSpeedValue=document.querySelector('#dribblerSpeedValue');
+    const capturePushTime=document.querySelector('#capturePushTime'), capturePushTimeValue=document.querySelector('#capturePushTimeValue');
+    let dribblerSettingTimer=null;
+    function showAutoSettings(){
+      dribblerSpeedValue.value=dribblerSpeed.value;
+      const seconds=Number(capturePushTime.value), estimatedCm=Math.round(seconds*20);
+      capturePushTimeValue.value=`${seconds.toFixed(2)} s (~${estimatedCm} cm)`;
+    }
+    function queueAutoSettings(){
+      showAutoSettings(); clearTimeout(dribblerSettingTimer);
+      dribblerSettingTimer=setTimeout(async()=>{
+        const response=await post('/api/auto-settings',{dribbler_pwm:Number(dribblerSpeed.value),capture_push_time_s:Number(capturePushTime.value)});
+        if(!response.ok){const result=await response.json();alert(result.error||'Could not update autonomous settings');}
+      },120);
+    }
+    dribblerSpeed.oninput=queueAutoSettings;
+    capturePushTime.oninput=queueAutoSettings;
+
+    const courseBlack=document.querySelector('#courseBlack'), courseRoi=document.querySelector('#courseRoi');
+    const courseArea=document.querySelector('#courseArea'), courseForward=document.querySelector('#courseForward');
+    const courseDangerWidth=document.querySelector('#courseDangerWidth');
+    const courseOrbitStart=document.querySelector('#courseOrbitStart'), courseOrbitDistance=document.querySelector('#courseOrbitDistance');
+    const courseOrbitSpeed=document.querySelector('#courseOrbitSpeed');
+    const coursePostClear=document.querySelector('#coursePostClear');
+    const courseGoalProgress=document.querySelector('#courseGoalProgress');
+    const courseGoalStop=document.querySelector('#courseGoalStop');
+    const courseInputs=[courseBlack,courseRoi,courseArea,courseForward,courseDangerWidth,courseOrbitStart,courseOrbitSpeed,courseOrbitDistance,coursePostClear,courseGoalProgress,courseGoalStop];
+    let courseSettingTimer=null;
+    function showCourseSettings(){
+      document.querySelector('#courseBlackValue').value=courseBlack.value;
+      document.querySelector('#courseRoiValue').value=`${courseRoi.value}%`;
+      document.querySelector('#courseAreaValue').value=courseArea.value;
+      document.querySelector('#courseForwardValue').value=courseForward.value;
+      document.querySelector('#courseDangerWidthValue').value=`${courseDangerWidth.value}%`;
+      document.querySelector('#courseOrbitStartValue').value=`${courseOrbitStart.value}%`;
+      document.querySelector('#courseOrbitSpeedValue').value=courseOrbitSpeed.value;
+      document.querySelector('#courseOrbitDistanceValue').value=`${Number(courseOrbitDistance.value).toFixed(2)} m`;
+      document.querySelector('#courseGoalProgressValue').value=`${courseGoalProgress.value}%`;
+      document.querySelector('#courseGoalStopValue').value=`${courseGoalStop.value}%`;
+    }
+    function queueCourseSettings(){
+      showCourseSettings(); clearTimeout(courseSettingTimer);
+      courseSettingTimer=setTimeout(async()=>{
+        const response=await post('/api/course-settings',{
+          black_value_max:Number(courseBlack.value),roi_top_percent:Number(courseRoi.value),
+          min_cone_area:Number(courseArea.value),forward_command:Number(courseForward.value),
+          side_danger_width_percent:Number(courseDangerWidth.value),
+          orbit_start_percent:Number(courseOrbitStart.value),orbit_pass_distance_m:Number(courseOrbitDistance.value),
+          orbit_command:Number(courseOrbitSpeed.value),
+          post_clear_forward_s:Number(coursePostClear.value),
+          goal_search_progress_percent:Number(courseGoalProgress.value),
+          goal_stop_percent:Number(courseGoalStop.value)
+        });
+        if(!response.ok){const result=await response.json();alert(result.error||'Could not update cone settings');}
+      },140);
+    }
+    courseInputs.forEach(input=>input.oninput=queueCourseSettings);
+
+    const fieldCanvas=document.querySelector('#fieldCanvas'), fieldCtx=fieldCanvas.getContext('2d');
+    const fieldWidth=document.querySelector('#fieldWidth'), fieldLength=document.querySelector('#fieldLength');
+    const fieldXScale=document.querySelector('#fieldXScale'), fieldYScale=document.querySelector('#fieldYScale');
+    const waypointSpeed=document.querySelector('#waypointSpeed'), waypointRadius=document.querySelector('#waypointRadius');
+    const fieldInputs=[fieldWidth,fieldLength,fieldXScale,fieldYScale,waypointSpeed,waypointRadius];
+    let lastFieldGeometry=null, latestState=null;
+    document.querySelector('#saveFieldMap').onclick=async()=>{
+      const response=await post('/api/field-map',{
+        width_m:Number(fieldWidth.value),length_m:Number(fieldLength.value),
+        odometry_x_scale:Number(fieldXScale.value),odometry_y_scale:Number(fieldYScale.value),
+        waypoint_max_command:Number(waypointSpeed.value),waypoint_arrival_radius_m:Number(waypointRadius.value)
+      });
+      if(!response.ok){const result=await response.json();alert(result.error||'Could not save field map');}
+    };
+    document.querySelector('#resetOdometry').onclick=async()=>{
+      const response=await post('/api/odometry/reset',{});
+      if(!response.ok){const result=await response.json();alert(result.error||'Could not reset odometry');}
+    };
+    document.querySelector('#clearOdomTrail').onclick=()=>post('/api/odometry/clear-trail',{});
+    document.querySelector('#waypointArm').onclick=()=>setMode('waypoint');
+    document.querySelector('#clearWaypoint').onclick=async()=>{
+      const response=await post('/api/waypoint/clear',{});
+      if(!response.ok){const result=await response.json();alert(result.error||'Could not clear waypoint');}
+    };
+    fieldCanvas.onclick=async event=>{
+      if(mode!=='safe'){alert('Press STOP before selecting a new waypoint.');return;}
+      if(!lastFieldGeometry)return;
+      const box=fieldCanvas.getBoundingClientRect();
+      const canvasX=(event.clientX-box.left)*fieldCanvas.width/box.width;
+      const canvasY=(event.clientY-box.top)*fieldCanvas.height/box.height;
+      const g=lastFieldGeometry;
+      if(canvasX<g.left||canvasX>g.right||canvasY<g.top||canvasY>g.bottom)return;
+      const x_m=(canvasX-g.left)/g.scale-g.map.width_m/2;
+      const y_m=(g.bottom-canvasY)/g.scale;
+      const response=await post('/api/waypoint',{x_m,y_m});
+      if(!response.ok){const result=await response.json();alert(result.error||'Could not set waypoint');}
+    };
+
+    function drawFieldMap(state){
+      const ctx=fieldCtx, cw=fieldCanvas.width, ch=fieldCanvas.height;
+      const map=state.field_map, odom=state.odometry;
+      ctx.clearRect(0,0,cw,ch); ctx.fillStyle='#02160f'; ctx.fillRect(0,0,cw,ch);
+      const pad=58, scale=Math.min((cw-pad*2)/map.width_m,(ch-pad*2)/map.length_m);
+      const fw=map.width_m*scale, fl=map.length_m*scale;
+      const left=(cw-fw)/2, top=(ch-fl)/2, right=left+fw, bottom=top+fl;
+      lastFieldGeometry={left,top,right,bottom,scale,map};
+      ctx.save(); ctx.beginPath(); ctx.rect(left,top,fw,fl); ctx.clip();
+      const pitch=ctx.createLinearGradient(left,0,right,0);
+      pitch.addColorStop(0,'#08713f'); pitch.addColorStop(.5,'#0a8249'); pitch.addColorStop(1,'#08713f');
+      ctx.fillStyle=pitch; ctx.fillRect(left,top,fw,fl);
+      const stripeCount=Math.max(4,Math.round(map.width_m));
+      for(let i=0;i<stripeCount;i+=2){ctx.fillStyle='#ffffff09';ctx.fillRect(left+i*fw/stripeCount,top,fw/stripeCount,fl);}
+      ctx.strokeStyle='#ffffff20';ctx.lineWidth=1;ctx.setLineDash([5,6]);
+      for(let metre=1;metre<map.width_m;metre+=1){const x=left+metre*scale;ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();}
+      for(let metre=1;metre<map.length_m;metre+=1){const y=bottom-metre*scale;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();}
+      ctx.setLineDash([]);ctx.strokeStyle='#f4fff7';ctx.lineWidth=3;ctx.strokeRect(left,top,fw,fl);
+      ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(left,top+fl/2);ctx.lineTo(right,top+fl/2);ctx.stroke();
+      ctx.beginPath();ctx.arc((left+right)/2,top+fl/2,Math.min(scale*.45,fw*.18),0,Math.PI*2);ctx.stroke();
+      const goalW=Math.min(fw*.42,scale*1.2);ctx.strokeStyle='#f5c84c';ctx.lineWidth=5;
+      ctx.beginPath();ctx.moveTo(cw/2-goalW/2,top);ctx.lineTo(cw/2+goalW/2,top);ctx.stroke();
+      ctx.strokeStyle='#8ec5ff';ctx.beginPath();ctx.moveTo(cw/2-goalW/2,bottom);ctx.lineTo(cw/2+goalW/2,bottom);ctx.stroke();
+      const px=x=>left+(x+map.width_m/2)*scale, py=y=>bottom-y*scale;
+      if(odom.trail.length>1){ctx.strokeStyle='#66e6ff';ctx.lineWidth=3;ctx.shadowColor='#3bdcff';ctx.shadowBlur=7;ctx.beginPath();odom.trail.forEach((p,i)=>{const x=px(p[0]),y=py(p[1]);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();ctx.shadowBlur=0;}
+      const waypoint=state.waypoint;
+      if(waypoint.target){
+        const targetX=px(waypoint.target.x_m), targetY=py(waypoint.target.y_m);
+        ctx.strokeStyle='#ffe36c';ctx.lineWidth=2;ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(px(odom.x_m),py(odom.y_m));ctx.lineTo(targetX,targetY);ctx.stroke();ctx.setLineDash([]);
+        ctx.shadowColor='#ffd633';ctx.shadowBlur=14;ctx.fillStyle='#ffe36c';ctx.beginPath();ctx.arc(targetX,targetY,10,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+        ctx.strokeStyle='#4a3900';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(targetX-15,targetY);ctx.lineTo(targetX+15,targetY);ctx.moveTo(targetX,targetY-15);ctx.lineTo(targetX,targetY+15);ctx.stroke();
+      }
+      ctx.restore();
+      const outside=odom.x_m < -map.width_m/2 || odom.x_m > map.width_m/2 || odom.y_m < 0 || odom.y_m > map.length_m;
+      const robotX=Math.max(left,Math.min(right,px(odom.x_m))), robotY=Math.max(top,Math.min(bottom,py(odom.y_m)));
+      const radius=Math.max(12,Math.min(22,scale*.18));
+      ctx.save();ctx.translate(robotX,robotY);ctx.shadowColor=outside?'#ff3d4f':'#6cf6ff';ctx.shadowBlur=18;
+      const robotFill=ctx.createRadialGradient(-radius*.3,-radius*.35,2,0,0,radius);
+      robotFill.addColorStop(0,'#ffffff');robotFill.addColorStop(.25,outside?'#ff8b94':'#6cf6ff');robotFill.addColorStop(1,outside?'#a71928':'#087a91');
+      ctx.fillStyle=robotFill;ctx.beginPath();ctx.arc(0,0,radius,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+      const heading=odom.heading_deg*Math.PI/180, noseX=Math.sin(heading)*radius*1.45, noseY=-Math.cos(heading)*radius*1.45;
+      ctx.strokeStyle='#071c20';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(noseX,noseY);ctx.stroke();
+      ctx.fillStyle='#f5c84c';ctx.beginPath();ctx.arc(noseX,noseY,5,0,Math.PI*2);ctx.fill();ctx.restore();
+      ctx.fillStyle=outside?'#ff7d88':'#dffff0';ctx.font='bold 15px system-ui';ctx.fillText(`X ${odom.x_m.toFixed(2)} m`,12,24);ctx.fillText(`Y ${odom.y_m.toFixed(2)} m`,12,44);
+      ctx.textAlign='right';ctx.fillText(odom.valid?'ODOMETRY LIVE':'ODOMETRY WAITING',cw-12,24);ctx.textAlign='left';
+    }
+
+    const sideInputs={
+      top:document.querySelector('#sideTop'), bottom:document.querySelector('#sideBottom'),
+      left_outer:document.querySelector('#sideLeftOuter'), left_inner:document.querySelector('#sideLeftInner'),
+      right_inner:document.querySelector('#sideRightInner'), right_outer:document.querySelector('#sideRightOuter')
+    };
+    const sideOutputs={
+      top:document.querySelector('#sideTopValue'), bottom:document.querySelector('#sideBottomValue'),
+      left_outer:document.querySelector('#sideLeftOuterValue'), left_inner:document.querySelector('#sideLeftInnerValue'),
+      right_inner:document.querySelector('#sideRightInnerValue'), right_outer:document.querySelector('#sideRightOuterValue')
+    };
+    let sideMaskTimer=null;
+    function sideMaskValues(){ return Object.fromEntries(Object.entries(sideInputs).map(([key,input])=>[key,Number(input.value)])); }
+    function showSideMaskValues(){ Object.keys(sideInputs).forEach(key=>sideOutputs[key].value=`${sideInputs[key].value}%`); }
+    function normalizeSideMask(changed){
+      let v=sideMaskValues();
+      if(v.bottom<v.top+5){if(changed==='top')v.bottom=Math.min(100,v.top+5);else v.top=Math.max(0,v.bottom-5);}
+      if(v.left_inner<v.left_outer+3){if(changed==='left_outer')v.left_inner=Math.min(65,v.left_outer+3);else v.left_outer=Math.max(0,v.left_inner-3);}
+      if(v.right_outer<v.right_inner+3){if(changed==='right_inner')v.right_outer=Math.min(100,v.right_inner+3);else v.right_inner=Math.max(35,v.right_outer-3);}
+      if(v.left_inner>=v.right_inner){if(changed==='left_inner')v.left_inner=v.right_inner-3;else v.right_inner=v.left_inner+3;}
+      Object.keys(v).forEach(key=>sideInputs[key].value=v[key]); showSideMaskValues();
+    }
+    function queueSideMask(changed){
+      normalizeSideMask(changed); clearTimeout(sideMaskTimer);
+      sideMaskTimer=setTimeout(async()=>{
+        const response=await post('/api/side-mask',sideMaskValues());
+        if(!response.ok){const result=await response.json();alert(result.error||'Could not update side mask');}
+      },140);
+    }
+    Object.entries(sideInputs).forEach(([key,input])=>input.oninput=()=>queueSideMask(key));
+    let floorCalibrationSession=false;
+    document.querySelector('#beginFloorCalibration').onclick=()=>calibrationPost('/api/floor-calibration/begin');
+    document.querySelector('#applyFloorCalibration').onclick=()=>calibrationPost('/api/floor-calibration/apply');
+    document.querySelector('#cancelFloorCalibration').onclick=()=>calibrationPost('/api/floor-calibration/cancel');
+    document.querySelector('#sideAvoidance').onchange=async event=>{
+      const response=await post('/api/side-avoidance',{enabled:event.target.checked});
+      if(!response.ok){const result=await response.json();alert(result.error||'Could not change side avoidance');event.target.checked=false;}
+    };
+    document.querySelector('#sideCamera').onclick=async event=>{
+      if(!floorCalibrationSession)return;
+      const point=imagePoint(event.currentTarget,event); if(!point)return;
+      await calibrationPost('/api/floor-calibration/sample',{x:point.x,y:point.y});
+    };
+
+    const pad=document.querySelector('#joystick'), stick=document.querySelector('#stick'), xy=document.querySelector('#xy');
+    const dpadSpeed=document.querySelector('#dpadSpeed'), dpadSpeedValue=document.querySelector('#dpadSpeedValue');
+    const dpadButtons=[...document.querySelectorAll('[data-dpad-x]')];
+    let activeDpadButton=null;
+    dpadSpeed.oninput=()=>{ dpadSpeedValue.textContent=dpadSpeed.value; };
+    function setTranslation(x,y){
+      joyX=Math.round(x); joyY=Math.round(y);
+      stick.style.left='50%'; stick.style.top='50%';
+      xy.textContent=`X ${joyX}   Y ${joyY}`;
+    }
+    function releaseDpad(event){
+      if(!activeDpadButton)return;
+      const button=activeDpadButton; activeDpadButton=null;
+      button.classList.remove('pressed');
+      try{ if(event?.pointerId!==undefined)button.releasePointerCapture(event.pointerId); }catch(_error){}
+      setTranslation(0,0);
+      post('/api/joystick',{x:0,y:0,r:joyR});
+    }
+    dpadButtons.forEach(button=>{
+      button.onpointerdown=event=>{
+        event.preventDefault();
+        if(mode!=='manual')return;
+        if(activeDpadButton&&activeDpadButton!==button)activeDpadButton.classList.remove('pressed');
+        joyActive=false; activeDpadButton=button; button.classList.add('pressed');
+        button.setPointerCapture(event.pointerId);
+        const speed=Number(dpadSpeed.value);
+        setTranslation(Number(button.dataset.dpadX)*speed,Number(button.dataset.dpadY)*speed);
+        post('/api/joystick',{x:joyX,y:joyY,r:joyR});
+      };
+      button.onpointerup=releaseDpad;
+      button.onpointercancel=releaseDpad;
+    });
+    function resetManualInputs(){
+      joyActive=false; turnActive=false; activeDpadButton=null;
+      joyX=joyY=joyR=0;
+      dpadButtons.forEach(button=>button.classList.remove('pressed'));
+      stick.style.left='50%'; stick.style.top='50%';
+      turnstick.style.left='50%';
+      xy.textContent='X 0   Y 0'; rotation.textContent='ROTATE 0';
+    }
+    function moveStick(event){
+      const r=pad.getBoundingClientRect(), radius=r.width/2, cx=r.left+radius, cy=r.top+radius;
+      let dx=event.clientX-cx, dy=event.clientY-cy, length=Math.hypot(dx,dy);
+      if(length>radius){ dx*=radius/length; dy*=radius/length; }
+      joyX=Math.round(dx/radius*100); joyY=Math.round(-dy/radius*100);
+      if(Math.hypot(joyX,joyY)<10){ joyX=joyY=0; }
+      stick.style.left=`${50+dx/r.width*100}%`; stick.style.top=`${50+dy/r.height*100}%`;
+      xy.textContent=`X ${joyX}   Y ${joyY}`;
+    }
+    function release(event){ if(!joyActive)return; joyActive=false; pad.releasePointerCapture?.(event.pointerId); joyX=joyY=0; stick.style.left='50%'; stick.style.top='50%'; xy.textContent='X 0   Y 0'; post('/api/joystick',{x:0,y:0,r:joyR}); }
+    pad.onpointerdown=e=>{ if(mode!=='manual')return; releaseDpad(); joyActive=true; pad.setPointerCapture(e.pointerId); moveStick(e); };
+    pad.onpointermove=e=>{ if(joyActive)moveStick(e); };
+    pad.onpointerup=release; pad.onpointercancel=release;
+    const turnpad=document.querySelector('#turnpad'), turnstick=document.querySelector('#turnstick'), rotation=document.querySelector('#rotation');
+    function moveTurn(event){
+      const box=turnpad.getBoundingClientRect(), half=box.width/2;
+      let dx=Math.max(-half,Math.min(half,event.clientX-(box.left+half)));
+      joyR=Math.round(dx/half*100); if(Math.abs(joyR)<10)joyR=0;
+      turnstick.style.left=`${50+dx/box.width*100}%`; rotation.textContent=`ROTATE ${joyR}`;
+    }
+    function releaseTurn(event){ if(!turnActive)return; turnActive=false; turnpad.releasePointerCapture?.(event.pointerId); joyR=0; turnstick.style.left='50%'; rotation.textContent='ROTATE 0'; post('/api/joystick',{x:joyX,y:joyY,r:0}); }
+    turnpad.onpointerdown=e=>{ turnActive=true; turnpad.setPointerCapture(e.pointerId); moveTurn(e); };
+    turnpad.onpointermove=e=>{ if(turnActive)moveTurn(e); };
+    turnpad.onpointerup=releaseTurn; turnpad.onpointercancel=releaseTurn;
+    setInterval(()=>{ if(mode==='manual')post('/api/joystick',{x:joyX,y:joyY,r:joyR}); },80);
+    setInterval(async()=>{
+      try{
+        const s=await (await fetch('/api/state')).json(); latestState=s; mode=s.mode; floorCalibrated=s.floor_calibrated; updateButtons();
+        document.querySelector('#connection').textContent=`${s.serial} | ${s.mode.toUpperCase()}`;
+        const gyro=s.actual_heading===null?'waiting':`${s.actual_heading}°`;
+        const imu=s.imu_ok===null?'?':s.imu_ok;
+        const calibration=s.calibrating?` | CALIBRATING ${s.calibration_progress}%`:'';
+        const dribbler=s.dribbler_running?'ON':'OFF';
+        document.querySelector('#state').textContent=`BALL ${s.color.toUpperCase()} | GOAL ${s.goal_color.toUpperCase()} ${s.goal_confidence}% | ${s.vision} | error ${s.error_px}px | gyro ${gyro} | target ${s.target_heading}° | IMU ${imu} | DRIB ${dribbler}${calibration}${s.last_serial?' | '+s.last_serial:''}`;
+        document.querySelector('#courseState').textContent=`${s.mode.toUpperCase()} | ${s.course_phase} | ${s.course_status} | map ${s.course_progress_percent}%${s.course_near_goal?' NEAR GOAL':''} | obstacles ${s.course_cone_count} | nearest ${s.course_nearest_cone_percent}% | pass ${s.course_pass_side} | X ${s.course_x} Y ${s.course_y} | center error ${s.course_center_error_m} m${s.course_recenter_active?' RETURNING':''} | goal memory ${s.course_goal_remembered?'YES':'NO'} | gyro ${gyro}`;
+        const od=s.odometry, odAge=od.telemetry_age_s===null?'none':`${od.telemetry_age_s.toFixed(2)}s`;
+        document.querySelector('#fieldMapState').textContent=`${od.valid?'LIVE':'WAITING'} | X ${od.x_m.toFixed(3)} m | Y ${od.y_m.toFixed(3)} m | speed ${od.speed_mps.toFixed(3)} m/s | H ${od.heading_deg}° | RPM ${od.rpm1}/${od.rpm2}/${od.rpm3} | age ${odAge}`;
+        const wp=s.waypoint, wpTarget=wp.target?`target X ${wp.target.x_m.toFixed(2)} Y ${wp.target.y_m.toFixed(2)}`:'no target';
+        document.querySelector('#waypointState').textContent=`${wp.status} | ${wpTarget} | distance ${wp.distance_m.toFixed(2)} m | command X ${wp.x_command} Y ${wp.y_command}`;
+        drawFieldMap(s);
+        document.querySelector('#goalkeeperState').textContent=`${s.mode.toUpperCase()} | ${s.vision} | ball error ${s.error_px}px | X command ${s.goalkeeper_x} | gyro ${gyro} | IMU ${imu}`;
+        document.querySelector('#manualState').textContent=`${s.mode.toUpperCase()} | gyro ${gyro} | manual target ${s.manual_heading}° | IMU ${imu}`;
+        document.querySelectorAll('[data-color]').forEach(b=>b.classList.toggle('active',b.dataset.color===s.color));
+        document.querySelectorAll('[data-goal-color]').forEach(b=>b.classList.toggle('active',b.dataset.goalColor===s.goal_color));
+        const bc=s.ball_calibration;
+        calibrationColor=bc.session?bc.color:s.color;
+        document.querySelectorAll('[data-cal-color]').forEach(b=>b.classList.toggle('active',b.dataset.calColor===calibrationColor));
+        const progress=bc.collecting?Math.round(100*bc.frame/bc.frames_total):0;
+        document.querySelector('#ballCalibrationProgress').style.width=`${progress}%`;
+        document.querySelector('#ballCalibrationState').textContent=`${bc.color.toUpperCase()} | ${bc.samples} sample${bc.samples===1?'':'s'} | ${bc.message}`;
+        document.querySelector('#applyBallCalibration').disabled=bc.collecting||bc.samples<1;
+        document.querySelector('#beginBallCalibration').disabled=bc.collecting;
+        const gc=s.goal_calibration;
+        goalCalibrationColor=gc.session?gc.color:s.goal_color;
+        document.querySelectorAll('[data-goal-cal-color]').forEach(b=>b.classList.toggle('active',b.dataset.goalCalColor===goalCalibrationColor));
+        const goalProgress=gc.collecting?Math.round(100*gc.frame/gc.frames_total):0;
+        document.querySelector('#goalCalibrationProgress').style.width=`${goalProgress}%`;
+        document.querySelector('#goalCalibrationState').textContent=`${gc.color.toUpperCase()} GOAL | ${gc.samples} sample${gc.samples===1?'':'s'} | ${gc.message}`;
+        document.querySelector('#applyGoalCalibration').disabled=gc.collecting||gc.samples<1;
+        document.querySelector('#beginGoalCalibration').disabled=gc.collecting;
+        if(document.activeElement!==nearLine&&document.activeElement!==captureLine){
+          nearLine.value=Math.round(s.near_line_percent); captureLine.value=Math.round(s.capture_line_percent); showLineValues();
+        }
+        if(document.activeElement!==goalShootLine&&document.activeElement!==autoKick){
+          goalShootLine.value=Math.round(s.goal_shoot_line_percent); autoKick.checked=s.auto_kick_enabled; showGoalSetting();
+        }
+        if(document.activeElement!==dribblerSpeed&&document.activeElement!==capturePushTime){
+          dribblerSpeed.value=Math.round(s.auto_dribbler_pwm);
+          capturePushTime.value=Number(s.capture_push_time_s).toFixed(2);
+          showAutoSettings();
+        }
+        if(!courseInputs.includes(document.activeElement)){
+          courseBlack.value=Math.round(s.course_black_value_max);
+          courseRoi.value=Math.round(s.course_roi_top_percent);
+          courseArea.value=Math.round(s.course_min_cone_area);
+          courseForward.value=Math.round(s.course_forward_command);
+          courseDangerWidth.value=Math.round(s.course_side_danger_width_percent);
+          courseOrbitStart.value=Math.round(s.course_orbit_start_percent);
+          courseOrbitSpeed.value=Math.round(s.course_orbit_command);
+          courseOrbitDistance.value=s.course_orbit_pass_distance_m;
+          coursePostClear.value=Number(s.course_post_clear_forward_s).toFixed(2);
+          courseGoalProgress.value=Math.round(s.course_goal_search_progress_percent);
+          courseGoalStop.value=Math.round(s.goal_shoot_line_percent);
+          showCourseSettings();
+        }
+        if(!fieldInputs.includes(document.activeElement)){
+          fieldWidth.value=s.field_map.width_m; fieldLength.value=s.field_map.length_m;
+          fieldXScale.value=s.field_map.odometry_x_scale; fieldYScale.value=s.field_map.odometry_y_scale;
+          waypointSpeed.value=s.field_map.waypoint_max_command;
+          waypointRadius.value=s.field_map.waypoint_arrival_radius_m;
+        }
+        document.querySelector('#sideCameraState').textContent=s.side_camera_connected?`CAMERA ${s.side_camera_index} CONNECTED | ${s.side_avoidance_state} | LEFT ${s.side_left_area_percent}% RIGHT ${s.side_right_area_percent}%`:`SIDE CAMERA NOT CONNECTED${s.side_camera_index===null?' | restart with --side-camera 1':''}`;
+        const fc=s.floor_calibration; floorCalibrationSession=fc.session;
+        const floorProgress=fc.collecting?Math.round(100*fc.frame/fc.frames_total):0;
+        document.querySelector('#floorCalibrationProgress').style.width=`${floorProgress}%`;
+        document.querySelector('#floorCalibrationState').textContent=`${s.floor_calibrated?'FLOOR MODEL SAVED':'NO FLOOR MODEL'} | ${fc.samples} sample${fc.samples===1?'':'s'} | ${fc.message}`;
+        document.querySelector('#applyFloorCalibration').disabled=mode!=='safe'||fc.collecting||fc.samples<1;
+        document.querySelector('#beginFloorCalibration').disabled=mode!=='safe'||fc.collecting;
+        document.querySelector('#sideAvoidance').checked=s.side_avoidance_enabled;
+        if(!Object.values(sideInputs).includes(document.activeElement)){
+          Object.keys(sideInputs).forEach(key=>sideInputs[key].value=Math.round(s.side_mask[key])); showSideMaskValues();
+        }
+      }catch(e){ document.querySelector('#connection').textContent='Disconnected'; }
+    },500);
+  </script>
+</body>
+</html>

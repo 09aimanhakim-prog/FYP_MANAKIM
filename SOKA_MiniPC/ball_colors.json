@@ -1,0 +1,6 @@
+{
+  "yellow": {"h_center": 30, "h_tolerance": 12, "s_min": 110, "v_min": 100, "min_area": 250, "min_circularity": 0.55},
+  "blue": {"h_center": 110, "h_tolerance": 15, "s_min": 100, "v_min": 70, "min_area": 250, "min_circularity": 0.50},
+  "red": {"h_center": 0, "h_tolerance": 12, "s_min": 120, "v_min": 80, "min_area": 250, "min_circularity": 0.50},
+  "orange": {"h_center": 15, "h_tolerance": 10, "s_min": 120, "v_min": 100, "min_area": 250, "min_circularity": 0.55}
+}

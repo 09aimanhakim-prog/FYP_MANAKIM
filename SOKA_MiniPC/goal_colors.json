@@ -1,0 +1,22 @@
+{
+  "yellow": {
+    "h_center": 30,
+    "h_tolerance": 15,
+    "s_min": 80,
+    "v_min": 60,
+    "min_area": 1400,
+    "min_aspect_ratio": 1.1,
+    "max_aspect_ratio": 6.0,
+    "min_rectangularity": 0.28
+  },
+  "blue": {
+    "h_center": 110,
+    "h_tolerance": 18,
+    "s_min": 75,
+    "v_min": 50,
+    "min_area": 1400,
+    "min_aspect_ratio": 1.1,
+    "max_aspect_ratio": 6.0,
+    "min_rectangularity": 0.28
+  }
+}
